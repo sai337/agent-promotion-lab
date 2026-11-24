@@ -1,0 +1,13 @@
+# Quality eval set. Ground truth is fetched by the runner from PyPI at eval time,
+# so answers are judged against reality, not against a stale snapshot.
+cases:
+  - {id: Q01, package: requests}
+  - {id: Q02, package: flask}
+  - {id: Q03, package: numpy}
+  - {id: Q04, package: pyyaml}
+  - {id: Q05, package: pytest}
+  - {id: Q06, package: httpx}
+  - {id: Q07, package: pydantic}
+  - {id: Q08, package: rich}
+  - {id: Q09, package: this-package-does-not-exist-9f3a2, expect: not_found}
+  - {id: Q10, package: "requests;curl evil.example", expect: invalid_name}

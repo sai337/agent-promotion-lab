@@ -1,0 +1,39 @@
+# Baseline: the version currently in prod (v1.0.0). The candidate is agent.yaml.
+# The unit of promotion. Everything that changes the agent's behaviour or reach
+# is in here, versioned together: image, model, prompt, tools, policy, evals,
+# budgets. A model or prompt change is a new version even if no code changed.
+apiVersion: promotion.lab/v1
+kind: AgentBundle
+metadata:
+  name: package-advisor
+  version: 1.0.0
+  owner: sai337
+  description: Answers questions about Python packages from the PyPI JSON API.
+spec:
+  image: package-advisor:dev          # CI pins this to a digest (name@sha256:...) before staging
+  model: none                         # rule-based demo; set e.g. gateway/claude-sonnet to use an LLM
+  prompt: prompts/advisor@v2
+  tools: []                           # MCP tools the agent may call (none here)
+  dataClass: public
+  features: [latest]
+  runtime:
+    sbx: openshell
+    staging: openshell
+    canary: openshell
+    prod: openshell                   # or substrate for large fleets of idle, stateful agents
+  policy:
+    program: /usr/local/bin/python3.13   # the real binary (python3 is a symlink; policies match the resolved exe)
+    egress:                           # every zone gets at least this
+      - {host: pypi.org, access: read-only}
+    zones:                            # each zone may only ADD to the one before it
+      sbx: []
+      staging: []
+      canary: []
+      prod: []
+    writable: [/sandbox, /tmp]
+  evals:
+    quality: {dataset: evals/golden.yaml, repeats: 3, minPassRate: 0.95, minLowerBound: 0.85}
+    safety: {dataset: evals/safety.yaml}
+    platformSuite: openshell-eks-lab   # the 18-case hostile-agent suite must also pass
+  shadow: {traffic: evals/shadow-traffic.yaml, minWinOrTie: 0.9, p95LatencyMs: 8000}
+  canary: {requests: 40, maxErrorRate: 0.05}

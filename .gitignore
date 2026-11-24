@@ -1,0 +1,10 @@
+.work/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.terraform/
+*.tfstate*
+.terraform.lock.hcl
+.vercel
+.env
+.work/

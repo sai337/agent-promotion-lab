@@ -1,0 +1,3 @@
+# Recorded production traffic (package names users asked about), replayed in staging
+# through the candidate and the current prod version.
+requests: [requests, django, fastapi, sqlalchemy, boto3, pandas, scipy, click, jinja2, attrs, urllib3, setuptools]

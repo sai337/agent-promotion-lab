@@ -1,0 +1,23 @@
+# Platform rules every bundle is checked against (G0). Owned by the platform team.
+zones: [sbx, staging, canary, prod]
+runtimes: [openshell, substrate]
+modelAllowList:
+  - none
+  - gateway/claude-sonnet
+  - gateway/claude-haiku
+  - gateway/gpt-oss-120b
+dataClasses: [public, internal, confidential]
+# Data classes a zone may handle: sbx never sees real confidential data.
+zoneDataClasses:
+  sbx: [public, internal]
+  staging: [public, internal, confidential]
+  canary: [public, internal, confidential]
+  prod: [public, internal, confidential]
+# Gates a bundle must have passed (in the evidence) before it may enter a zone.
+requiredGates:
+  sbx: [G0]
+  staging: [G0, G1-quality, G1-safety, G2]
+  canary: [G0, G1-quality, G1-safety, G2, G3]
+  prod: [G0, G1-quality, G1-safety, G2, G3, G4]
+# Zones where the image must be pinned by digest.
+pinnedImageZones: [staging, canary, prod]

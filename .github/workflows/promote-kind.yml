@@ -1,0 +1,73 @@
+name: promote-kind
+# End to end: the package-advisor agent goes sbx -> staging -> canary -> prod
+# through G0-G4, running inside real OpenShell sandboxes on kind.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      open_pr:
+        description: "Open a PR with the evidence and releases.yaml changes (needs 'Allow GitHub Actions to create pull requests')"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "23 11 * * *"
+permissions:
+  contents: write
+  pull-requests: write
+  packages: read
+concurrency:
+  group: promote-kind-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OPENSHELL_TELEMETRY_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: azure/setup-helm@v4
+      - uses: helm/kind-action@v1.12.0
+        with: { install_only: true }
+      - run: pip install -e '.[test]'
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: sbx -> staging -> canary -> prod
+        run: bash e2e/promote-kind.sh
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '## Promotion record'
+            echo '```'
+            PYTHONPATH=app python3 -m agentctl.cli --platform config/platform-kind.yaml status examples/package-advisor/agent.yaml || true
+            echo '```'
+            for f in evidence/package-advisor/1.1.0/*.json; do
+              python3 -c "import json,sys; d=json.load(open('$f')); print(f\"- **{d.get('gate', '$f')}**: {'PASS' if d.get('passed') else 'FAIL'} - {d.get('summary', '')}\")" 2>/dev/null || true
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: promotion-evidence
+          path: |
+            evidence/
+            envs/
+            .work/suite/
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide || true
+          kubectl -n openshell logs statefulset/openshell --tail=200 || true
+      - name: Open the promotion PR
+        if: success() && inputs.open_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name sai337 && git config user.email sai.devop@gmail.com
+          br="promote/package-advisor-1.1.0-${{ github.run_id }}"
+          git checkout -b "$br" && git add evidence envs && git commit -m "Promote package-advisor 1.1.0 to prod with evidence (run ${{ github.run_id }})"
+          git push -u origin "$br"
+          gh pr create --title "Promote package-advisor 1.1.0 to prod" --body "Evidence for G0-G4 is in evidence/package-advisor/1.1.0/. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

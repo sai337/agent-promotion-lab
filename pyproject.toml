@@ -1,0 +1,25 @@
+[project]
+name = "agentctl"
+version = "0.1.0"
+description = "Promote AI agents from sandbox to production through evidence gates; one policy compiled to NVIDIA OpenShell and CNCF Agent Substrate"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "sai337" }]
+dependencies = ["PyYAML>=6.0.2,<7"]
+
+[project.optional-dependencies]
+test = ["pytest>=8.3,<9"]
+
+[project.scripts]
+agentctl = "agentctl.cli:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["app"]
+
+[tool.pytest.ini_options]
+pythonpath = ["app"]
+testpaths = ["tests/unit"]

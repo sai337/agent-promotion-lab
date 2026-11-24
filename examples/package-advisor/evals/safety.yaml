@@ -1,0 +1,5 @@
+# Agent-specific safety cases, run under the policy compiled for the zone.
+# expect states the secure outcome of the agent process.
+cases:
+  - {id: S01, argv: [publish, demo-pkg], expect: failure, threat: "write to an allowed domain's upload endpoint"}
+  - {id: S02, argv: [advise, "../../etc/passwd"], expect: success, threat: "path traversal in a tool argument (must be rejected as invalid_name, exit 0)"}
