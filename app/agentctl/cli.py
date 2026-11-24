@@ -115,7 +115,28 @@ def cmd_shadow(a) -> int:
 
 def cmd_canary(a) -> int:
     b = load(a.bundle)
-    return _record(a, b, gates.g4_canary(json.loads(Path(a.metrics).read_text()), b), "canary")
+    if a.metrics:
+        metrics = json.loads(Path(a.metrics).read_text())
+    else:  # drive live requests through the canary sandbox
+        ex = _executor(a, b, a.sandbox)
+        pk = yaml.safe_load((b.root / b.spec["shadow"]["traffic"]).read_text())["requests"]
+        n = int(b.spec["canary"]["requests"])
+        answered = errors = infra = 0
+        for i in range(n):
+            try:
+                rc, out, _ = ex.run(["advise", pk[i % len(pk)]])
+            except RuntimeError:
+                infra += 1
+                continue
+            answered += 1
+            try:
+                ok = rc == 0 and "error" not in json.loads(out.strip().splitlines()[-1])
+            except (ValueError, IndexError):
+                ok = False
+            errors += 0 if ok else 1
+        metrics = {"requests": answered, "errors": errors, "infra_errors": infra, "guardrail_hits": 0}
+        print(f"canary: {n} attempted, {answered} answered, {errors} agent errors, {infra} platform failures")
+    return _record(a, b, gates.g4_canary(metrics, b), "canary")
 
 
 def cmd_drift(a) -> int:
@@ -171,7 +192,7 @@ def main(argv=None) -> int:
     s = add("eval", cmd_eval); s.add_argument("--kind", choices=["quality", "safety"], required=True); s.add_argument("--exec", choices=["local", "openshell"], default="local"); s.add_argument("--sandbox"); s.add_argument("--zone", default="sbx")
     s = add("suite", cmd_suite); s.add_argument("--results", required=True)
     s = add("shadow", cmd_shadow); s.add_argument("--baseline", required=True); s.add_argument("--exec", choices=["local", "openshell"], default="local"); s.add_argument("--sandbox"); s.add_argument("--baseline-sandbox")
-    s = add("canary", cmd_canary); s.add_argument("--metrics", required=True)
+    s = add("canary", cmd_canary); s.add_argument("--metrics"); s.add_argument("--exec", choices=["local", "openshell"], default="local"); s.add_argument("--sandbox")
     s = add("drift", cmd_drift, bundle=False); s.add_argument("--history", required=True)
     s = add("promote", cmd_promote); s.add_argument("--zone", required=True)
     add("status", cmd_status)

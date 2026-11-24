@@ -54,7 +54,11 @@ def test_g3_g4_g5():
     assert not gates.g3_shadow(pairs[-1:] * 5, b).passed
     assert gates.g4_canary({"requests": 40, "errors": 1}, b).details["decision"] == "promote"
     assert gates.g4_canary({"requests": 40, "errors": 5}, b).details["decision"] == "rollback"
-    assert not gates.g4_canary({"requests": 10, "errors": 0}, b).passed
+    assert gates.g4_canary({"requests": 10, "errors": 0}, b).details["decision"] == "inconclusive"
+    # platform failures do not count against the agent, but are reported
+    r = gates.g4_canary({"requests": 38, "errors": 0, "infra_errors": 2}, b)
+    assert r.passed and "2 platform failures excluded" in r.summary
+    assert gates.g4_canary({"requests": 18, "errors": 0, "infra_errors": 22}, b).details["decision"] == "inconclusive"
     hist = [{"pass_rate": r} for r in (1.0, 0.98, 1.0, 0.97, 0.85, 0.84, 0.86)]
     assert gates.g5_drift(hist).details["decision"] == "demote"
     assert gates.g5_drift(hist[:4]).passed

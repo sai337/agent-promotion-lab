@@ -18,6 +18,13 @@ BASE=examples/package-advisor/agent-v1.0.0.yaml
 P=(--platform config/platform-kind.yaml)
 ctl() { python3 -m agentctl.cli "${P[@]}" "$@"; }
 log() { printf '\n==> %s\n' "$*"; }
+# kubectl port-forward degrades on long runs; refresh it before each phase.
+pf() {
+  [ -f "$LAB/.work/port-forward.pid" ] && kill "$(cat "$LAB/.work/port-forward.pid")" 2>/dev/null || true
+  nohup kubectl -n openshell port-forward svc/openshell "${OSLAB_PORT:-18080}:8080" >"$LAB/.work/port-forward.log" 2>&1 &
+  echo $! > "$LAB/.work/port-forward.pid"
+  for _ in $(seq 1 20); do (echo >"/dev/tcp/127.0.0.1/${OSLAB_PORT:-18080}") 2>/dev/null && return 0; sleep 1; done
+}
 
 log "1. platform from openshell-eks-lab"
 [ -d "$LAB/.git" ] || git clone -q --depth 1 https://github.com/sai337/openshell-eks-lab "$LAB"
@@ -44,6 +51,7 @@ sandbox() { # name bundle zone
 }
 
 log "3. sbx zone"
+pf
 ctl validate "$B" --zone sbx
 ctl promote "$B" --zone sbx
 sandbox pa-sbx "$B" sbx
@@ -52,6 +60,7 @@ ctl eval "$B" --kind safety --exec openshell --sandbox pa-sbx --zone sbx
 ctl diff "$B" --zone staging --from-bundle "$BASE" --from-zone prod
 
 log "4. staging: shadow replay vs current prod (1.0.0)"
+pf
 ctl validate "$B" --zone staging
 ctl promote "$B" --zone staging
 sandbox pa-stg "$B" staging
@@ -59,28 +68,14 @@ sandbox pa-prod "$BASE" prod
 ctl shadow "$B" --baseline "$BASE" --exec openshell --sandbox pa-stg --baseline-sandbox pa-prod
 
 log "5. canary: live requests"
+pf
 ctl validate "$B" --zone canary
 ctl promote "$B" --zone canary
 sandbox pa-can "$B" canary
-python3 - <<'PY'
-import json, subprocess, yaml
-pk = yaml.safe_load(open("examples/package-advisor/evals/shadow-traffic.yaml"))["requests"]
-n, errors = 40, 0
-for i in range(n):
-    p = subprocess.run(["openshell", "sandbox", "exec", "-n", "pa-can", "--no-login-shell", "--", "/bin/bash", "-c",
-                        f"ADVISOR_FEATURES=latest,requires_python,license /usr/local/bin/python3.13 /app/advisor.py advise {pk[i % len(pk)]}"],
-                       capture_output=True, text=True, timeout=120)
-    try:
-        ok = p.returncode == 0 and "error" not in json.loads(p.stdout.strip().splitlines()[-1])
-    except Exception:
-        ok = False
-    errors += 0 if ok else 1
-json.dump({"requests": n, "errors": errors, "guardrail_hits": 0}, open(".work/canary-metrics.json", "w"))
-print(f"canary: {n} requests, {errors} errors")
-PY
-ctl canary "$B" --metrics "$WORK/canary-metrics.json"
+ctl canary "$B" --exec openshell --sandbox pa-can
 
 log "6. prod"
+pf
 ctl validate "$B" --zone prod
 ctl promote "$B" --zone prod
 ctl status "$B"

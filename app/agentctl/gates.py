@@ -99,12 +99,20 @@ def g3_shadow(pairs: list[dict], b: Bundle) -> GateResult:
 
 
 def g4_canary(metrics: dict, b: Bundle) -> GateResult:
-    """metrics: {"requests": n, "errors": n, "guardrail_hits": n}."""
+    """metrics: {"requests": answered, "errors": agent errors, "infra_errors": never ran}.
+    Platform failures are not the agent's fault: they are excluded from the error rate, but too
+    many of them make the canary inconclusive (no promotion, no rollback verdict on the agent)."""
     cfg = b.spec["canary"]
     n = max(int(metrics.get("requests", 0)), 0)
-    err = (metrics.get("errors", 0) / n) if n else 1.0
-    passed = n >= int(cfg["requests"]) and err <= float(cfg["maxErrorRate"])
-    return GateResult("G4", passed, f"error rate {err:.1%} over {n} canary requests ({'promote' if passed else 'roll back'})",
+    infra = int(metrics.get("infra_errors", 0))
+    need = int(cfg["requests"]) * 0.9
+    if n < need:
+        return GateResult("G4", False, f"inconclusive: only {n} answered, {infra} never ran (platform); fix the platform and re-run",
+                          {**metrics, "decision": "inconclusive"})
+    err = metrics.get("errors", 0) / n
+    passed = err <= float(cfg["maxErrorRate"])
+    return GateResult("G4", passed, f"error rate {err:.1%} over {n} canary requests ({'promote' if passed else 'roll back'})"
+                      + (f"; {infra} platform failures excluded" if infra else ""),
                       {**metrics, "error_rate": round(err, 4), "max_error_rate": cfg["maxErrorRate"], "decision": "promote" if passed else "rollback"})
 
 
