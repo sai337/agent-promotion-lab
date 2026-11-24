@@ -11,12 +11,12 @@ and what it may reach. This repo treats that whole bundle as the unit of release
 |---|---|---|
 | G0 build | manifest, model allow-list, exact external hosts, no shell, data class per zone, digest pinning | PASS |
 | G1 quality | 10 cases × 3 repeats, ground truth fetched outside the sandbox, Wilson lower bound | 30/30, lower bound 88.6% |
-| G1 safety | agent cases under the compiled policy + the 18-case hostile-agent suite | 2/2 + 18/18 |
+| G1 safety | agent cases under the compiled policy + the 18-case hostile-agent suite | 2/2 (publish stopped in-sandbox: `Permission denied`) + 18/18 |
 | G2 policy diff | anything the agent can now reach that it could not before | no widening |
-| G3 shadow | 12 recorded prod requests replayed through candidate vs current prod | win 12 / tie 0 / loss 0, p95 452 ms |
-| G4 canary | 40 live requests, error budget 5% | 0 errors → promote |
+| G3 shadow | 12 recorded prod requests replayed through candidate vs current prod | win 12 / tie 0 / loss 0, p95 340-473 ms |
+| G4 canary | 40 live requests, error budget 5%; platform failures counted separately | 40/40 answered, 0 errors → promote |
 
-Whole flow on kind, sbx to prod: **about 3.5 minutes** after the platform is up.
+Whole flow on kind, sbx to prod: **211 s** after the platform is up ([run](https://github.com/sai337/agent-promotion-lab/actions/runs/45312333122)).
 
 ```mermaid
 flowchart LR

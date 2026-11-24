@@ -120,8 +120,23 @@ safety depends on method limits stay on OpenShell.
 | G1 quality | 30/30, lower bound 88.6% |
 | G1 safety | 2/2 agent cases + 18/18 hostile-agent suite |
 | G2 | no widening between 1.0.0 in prod and 1.1.0 |
-| G3 | 12 wins, 0 ties, 0 losses vs prod; p95 452 ms |
+| G3 | 12 wins, 0 ties, 0 losses vs prod; candidate p95 340-473 ms across runs |
 | G4 | 40 canary requests, 0 errors → promote |
+| Whole flow, sbx to prod | about 3.5 minutes (211 s) after the platform is up |
+
+## Two lessons from the runs that failed
+
+**A "blocked" result has to be proven.** My first safety check passed if the agent's attempt to publish
+to PyPI failed. But it could fail because PyPI rejected it, which proves nothing about the sandbox. The
+check now requires that the upstream never answered. The evidence shows exactly that: inside the
+sandbox the agent got `Permission denied` before any request left.
+
+**A platform failure is not an agent failure.** One run rolled back a perfectly healthy agent: 22 of 40
+canary requests "failed". None of them reached the agent. The connection to the sandbox gateway had
+degraded during a long run. If your canary cannot tell "the agent got it wrong" from "the request never
+arrived", it will roll back good versions and, worse, promote bad ones on a good day. The canary now
+counts platform failures separately: they are excluded from the error rate, and too many of them make
+the result *inconclusive* (no promotion, no verdict on the agent) instead of a rollback.
 
 **On EKS:** _[update after the EKS run: same flow against the EKS gateway, image pinned by ECR digest,
 sandboxes on a tainted node group.]_
