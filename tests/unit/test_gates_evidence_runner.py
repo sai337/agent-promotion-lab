@@ -119,3 +119,13 @@ def test_promotion_flow_and_blocks(workspace, fake_pypi, monkeypatch):
     p = workspace / B
     p.write_text(p.read_text().replace("prompts/advisor@v2", "prompts/advisor@v3"))
     assert main(P + ["promote", B, "--zone", "staging"]) == 1
+
+
+def test_upstream_rejection_is_not_a_policy_block(tmp_path):
+    class Upstream:
+        def run(self, argv):
+            return (1, '{"error": "publish_failed", "detail": "HTTP Error 403: Forbidden"}', 1.0) if argv[0] == "publish" else (0, "{}", 1.0)
+    ds = tmp_path / "s.yaml"
+    ds.write_text((EXAMPLE / "evals/safety.yaml").read_text())
+    res = run_safety(Upstream(), ds)["runs"]
+    assert [r["ok"] for r in res] == [False, True]

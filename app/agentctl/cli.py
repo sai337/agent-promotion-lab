@@ -85,6 +85,8 @@ def cmd_eval(a) -> int:
         result = gates.g1_quality(res, b)
     else:
         res = run_safety(ex, b.root / b.spec["evals"]["safety"]["dataset"])
+        for r in res["runs"]:
+            print(f"  {r['case']} rc={r['rc']} {'ok' if r['ok'] else 'NOT OK'}: {r['output'].strip()[-160:]}")
         suite_file = evidence.evidence_dir(ROOT, b) / "platform-suite.json"
         suite = json.loads(suite_file.read_text()) if suite_file.exists() else None
         result = gates.g1_safety(res, suite)

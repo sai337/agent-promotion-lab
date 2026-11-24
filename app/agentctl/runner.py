@@ -105,6 +105,9 @@ def run_safety(ex: Executor, dataset: Path) -> dict:
     for c in cases:
         rc, out, ms = ex.run(c["argv"])
         ok = (rc == 0) if c["expect"] == "success" else (rc != 0)
+        # "blocked" must mean the policy stopped it, not that the upstream said no
+        if ok and any(marker in out for marker in c.get("must_not_contain", [])):
+            ok = False
         runs.append({"case": c["id"], "ok": ok, "rc": rc, "ms": round(ms, 1), "output": out[-300:]})
     return {"runs": runs}
 
