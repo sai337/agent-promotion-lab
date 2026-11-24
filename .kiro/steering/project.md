@@ -18,3 +18,7 @@ Definition of done
 2. `agentctl status examples/package-advisor/agent.yaml` shows PASS for G0, G1-quality, G1-safety, G2, G3, G4 and "may enter prod: yes".
 3. `evidence/package-advisor/1.1.0/` and `envs/prod/releases.yaml` committed on a branch with a PR.
 4. On EKS: the same, with `--platform config/platform.yaml` and the image pinned by ECR digest.
+
+## Read first
+- docs/GUIDE.md explains every component, flow, command and signal in plain words. Use it to explain results to the owner.
+- docs/DEPLOYMENT.md is the exact EKS procedure. Personal lab AWS account only; destroy when done.
