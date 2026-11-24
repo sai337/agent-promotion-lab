@@ -42,16 +42,20 @@ class OpenShellExecutor:
         self.sandbox, self.agent_cmd = sandbox, agent_cmd
         self.cli = cli or os.environ.get("OPENSHELL_BIN", "openshell")
 
-    def run(self, argv: list[str]) -> tuple[int, str, float]:
-        t0 = time.monotonic()
+    def run(self, argv: list[str], attempts: int = 3) -> tuple[int, str, float]:
         cmd = " ".join(shlex.quote(a) for a in self.agent_cmd + argv)
         env = {**os.environ, "OPENSHELL_TELEMETRY_ENABLED": "false"}
-        p = subprocess.run([self.cli, "sandbox", "exec", "-n", self.sandbox, "--no-login-shell", "--", "/bin/bash", "-c", cmd],
-                           capture_output=True, text=True, timeout=120, env=env)
-        out = p.stdout + p.stderr
-        if p.returncode != 0 and "Error:" in out and "×" in out:
-            raise RuntimeError(f"agent did not run in sandbox {self.sandbox}: {out[-400:]}")
-        return p.returncode, out, (time.monotonic() - t0) * 1000
+        out = ""
+        for attempt in range(attempts):
+            t0 = time.monotonic()
+            p = subprocess.run([self.cli, "sandbox", "exec", "-n", self.sandbox, "--no-login-shell", "--", "/bin/bash", "-c", cmd],
+                               capture_output=True, text=True, timeout=120, env=env)
+            out = p.stdout + p.stderr
+            if not (p.returncode != 0 and "Error:" in out and "×" in out):
+                return p.returncode, out, (time.monotonic() - t0) * 1000
+            # The CLI failed before the command ran (e.g. a gateway keep-alive timeout): safe to retry.
+            time.sleep(2 * (attempt + 1))
+        raise RuntimeError(f"agent did not run in sandbox {self.sandbox} after {attempts} attempts: {out[-400:]}")
 
 
 def pypi_truth(package: str, fetch: Callable[[str], dict | None] | None = None) -> dict | None:
